@@ -168,3 +168,10 @@ Thumbs.db
 
 # Node
 npm-debug.log
+
+# Certificates
+*.crt
+*.key
+*.srl
+*.csr
+*.cnf
