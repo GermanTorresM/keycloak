@@ -1,0 +1,750 @@
+Description: >-
+  (SO8021) - Deploy keycloak using aurora serverless with existing vpc. template
+  version: v2.1.1
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Application Load Balancer Settings
+        Parameters:
+          - CertificateArn
+      - Label:
+          default: VPC Settings
+        Parameters:
+          - VpcId
+          - PubSubnets
+          - PrivSubnets
+          - DBSubnets
+      - Label:
+          default: AutoScaling Settings
+        Parameters:
+          - MinContainers
+          - MaxContainers
+          - AutoScalingTargetCpuUtilization
+      - Label:
+          default: Environment variable
+        Parameters:
+          - JavaOpts
+Parameters:
+  CertificateArn:
+    Type: String
+    Description: Certificate Arn for Application Load Balancer
+    MinLength: 5
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+    Description: Your VPC Id
+  PubSubnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+    Description: Public subnets (Choose two)
+  PrivSubnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+    Description: Private subnets (Choose two)
+  DBSubnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+    Description: Database subnets (Choose two)
+  MinContainers:
+    Type: Number
+    Default: 2
+    Description: minimum containers count
+    MinValue: 2
+  MaxContainers:
+    Type: Number
+    Default: 10
+    Description: maximum containers count
+    MinValue: 2
+  AutoScalingTargetCpuUtilization:
+    Type: Number
+    Default: 75
+    Description: Auto scaling target cpu utilization
+    MinValue: 0
+  JavaOpts:
+    Type: String
+    Default: '-server -Xms1024m -Xmx1638m'
+    Description: JAVA_OPTS environment variable
+Resources:
+  KeyCloakDatabaseAuroraServerlessClusterSubnets6166944B:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: Subnets for AuroraServerlessCluster database
+      SubnetIds:
+        - !Select 
+          - 0
+          - !Ref DBSubnets
+        - !Select 
+          - 1
+          - !Ref DBSubnets
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/Database/AuroraServerlessCluster/Subnets/Default
+  KeyCloakDatabaseAuroraServerlessClusterSecurityGroupF0CB4641:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: RDS security group
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: '-1'
+      SecurityGroupIngress:
+        - CidrIp: !Ref 'AWS::NoValue'
+          Description: !Join 
+            - ''
+            - - 'from '
+              - !Ref 'AWS::NoValue'
+              - ':3306'
+          FromPort: 3306
+          IpProtocol: tcp
+          ToPort: 3306
+      VpcId: !Ref VpcId
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/Database/AuroraServerlessCluster/SecurityGroup/Resource
+  KeyCloakDatabaseAuroraServerlessClusterSecurityGroupfromkeycloakauroraserverlessfromexistingvpcKeyCloakDatabaseAuroraServerlessClusterSecurityGroup05FDC3E23306FCA6E441:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: >-
+        from
+        keycloakauroraserverlessfromexistingvpcKeyCloakDatabaseAuroraServerlessClusterSecurityGroup05FDC3E2:3306
+      FromPort: 3306
+      GroupId: !GetAtt 
+        - KeyCloakDatabaseAuroraServerlessClusterSecurityGroupF0CB4641
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakDatabaseAuroraServerlessClusterSecurityGroupF0CB4641
+        - GroupId
+      ToPort: 3306
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/Database/AuroraServerlessCluster/SecurityGroup/from
+        keycloakauroraserverlessfromexistingvpcKeyCloakDatabaseAuroraServerlessClusterSecurityGroup05FDC3E2:3306
+  KeyCloakDatabaseAuroraServerlessClusterSecurityGroupfromkeycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3DIndirectPort1938F49B:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: >-
+        from
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D:{IndirectPort}
+      FromPort: !GetAtt 
+        - KeyCloakDatabaseAuroraServerlessClusterDB73D16F
+        - Endpoint.Port
+      GroupId: !GetAtt 
+        - KeyCloakDatabaseAuroraServerlessClusterSecurityGroupF0CB4641
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: !GetAtt 
+        - KeyCloakDatabaseAuroraServerlessClusterDB73D16F
+        - Endpoint.Port
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/Database/AuroraServerlessCluster/SecurityGroup/from
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D:{IndirectPort}
+  keycloakauroraserverlessfromexistingvpcKeyCloakDatabaseAuroraServerlessClusterSecret469B117A3fdaad7efa858a3daf9490cf0a702aeb:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Description: !Join 
+        - ''
+        - - 'Generated by the CDK for stack: '
+          - !Ref 'AWS::StackName'
+      GenerateSecretString:
+        ExcludeCharacters: ' %+~`#$&*()|[]{}:;<>?!''/@"\'
+        GenerateStringKey: password
+        PasswordLength: 30
+        SecretStringTemplate: '{"username":"admin"}'
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/Database/AuroraServerlessCluster/Secret/Resource
+  KeyCloakDatabaseAuroraServerlessClusterSecretAttachmentA32F9C7B:
+    Type: 'AWS::SecretsManager::SecretTargetAttachment'
+    Properties:
+      SecretId: !Ref >-
+        keycloakauroraserverlessfromexistingvpcKeyCloakDatabaseAuroraServerlessClusterSecret469B117A3fdaad7efa858a3daf9490cf0a702aeb
+      TargetId: !Ref KeyCloakDatabaseAuroraServerlessClusterDB73D16F
+      TargetType: 'AWS::RDS::DBCluster'
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/Database/AuroraServerlessCluster/Secret/Attachment/Resource
+  KeyCloakDatabaseAuroraServerlessClusterDB73D16F:
+    Type: 'AWS::RDS::DBCluster'
+    Properties:
+      Engine: aurora-mysql
+      BackupRetentionPeriod: 7
+      DatabaseName: keycloak
+      DBClusterParameterGroupName: default.aurora-mysql5.7
+      DBSubnetGroupName: !Ref KeyCloakDatabaseAuroraServerlessClusterSubnets6166944B
+      DeletionProtection: true
+      EngineMode: serverless
+      MasterUsername: admin
+      MasterUserPassword: !Join 
+        - ''
+        - - '{{resolve:secretsmanager:'
+          - !Ref >-
+            keycloakauroraserverlessfromexistingvpcKeyCloakDatabaseAuroraServerlessClusterSecret469B117A3fdaad7efa858a3daf9490cf0a702aeb
+          - ':SecretString:password::}}'
+      StorageEncrypted: true
+      VpcSecurityGroupIds:
+        - !GetAtt 
+          - KeyCloakDatabaseAuroraServerlessClusterSecurityGroupF0CB4641
+          - GroupId
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/Database/AuroraServerlessCluster/Resource
+  KeyCloakKCSecretF8498E5C:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      GenerateSecretString:
+        ExcludePunctuation: true
+        GenerateStringKey: password
+        PasswordLength: 12
+        SecretStringTemplate: '{"username":"keycloak"}'
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      'aws:cdk:path': keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KCSecret/Resource
+  KeyCloakKeyCloakContainerSerivceClusterA18E44FF:
+    Type: 'AWS::ECS::Cluster'
+    DependsOn:
+      - KeyCloakDatabaseAuroraServerlessClusterDB73D16F
+      - KeyCloakDatabaseAuroraServerlessClusterSecretAttachmentA32F9C7B
+      - >-
+        keycloakauroraserverlessfromexistingvpcKeyCloakDatabaseAuroraServerlessClusterSecret469B117A3fdaad7efa858a3daf9490cf0a702aeb
+      - >-
+        KeyCloakDatabaseAuroraServerlessClusterSecurityGroupfromkeycloakauroraserverlessfromexistingvpcKeyCloakDatabaseAuroraServerlessClusterSecurityGroup05FDC3E23306FCA6E441
+      - >-
+        KeyCloakDatabaseAuroraServerlessClusterSecurityGroupfromkeycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3DIndirectPort1938F49B
+      - KeyCloakDatabaseAuroraServerlessClusterSecurityGroupF0CB4641
+      - KeyCloakDatabaseAuroraServerlessClusterSubnets6166944B
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Cluster/Resource
+  KeyCloakKeyCloakContainerSerivceTaskRole0658CED2:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: 2012-10-17
+      ManagedPolicyArns:
+        - !Join 
+          - ''
+          - - 'arn:'
+            - !Ref 'AWS::Partition'
+            - ':iam::aws:policy/AmazonEC2ContainerRegistryReadOnly'
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/TaskRole/Resource
+  KeyCloakKeyCloakContainerSerivceTaskRoleDefaultPolicyA2321E87:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Effect: Allow
+            Resource: !GetAtt 
+              - KeyCloakKeyCloakContainerSerivceLogGroup010F2AAE
+              - Arn
+          - Action:
+              - 'secretsmanager:GetSecretValue'
+              - 'secretsmanager:DescribeSecret'
+            Effect: Allow
+            Resource: !Ref KeyCloakDatabaseAuroraServerlessClusterSecretAttachmentA32F9C7B
+          - Action:
+              - 'secretsmanager:GetSecretValue'
+              - 'secretsmanager:DescribeSecret'
+            Effect: Allow
+            Resource: !Ref KeyCloakKCSecretF8498E5C
+        Version: 2012-10-17
+      PolicyName: KeyCloakKeyCloakContainerSerivceTaskRoleDefaultPolicyA2321E87
+      Roles:
+        - !Ref KeyCloakKeyCloakContainerSerivceTaskRole0658CED2
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/TaskRole/DefaultPolicy/Resource
+  KeyCloakKeyCloakContainerSerivceTaskDefTaskRole0DC4D418:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: 2012-10-17
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/TaskDef/TaskRole/Resource
+  KeyCloakKeyCloakContainerSerivceTaskDef30C9533A:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: DB_ADDR
+              Value: !GetAtt 
+                - KeyCloakDatabaseAuroraServerlessClusterDB73D16F
+                - Endpoint.Address
+            - Name: DB_DATABASE
+              Value: keycloak
+            - Name: DB_PORT
+              Value: '3306'
+            - Name: DB_USER
+              Value: admin
+            - Name: DB_VENDOR
+              Value: mysql
+            - Name: PROXY_ADDRESS_FORWARDING
+              Value: 'true'
+            - Name: JDBC_PARAMS
+              Value: useSSL=false
+            - Name: JGROUPS_DISCOVERY_PROTOCOL
+              Value: JDBC_PING
+            - Name: JAVA_OPTS
+              Value: !Ref JavaOpts
+          Essential: true
+          Image: !FindInMap 
+            - KeyCloakKeyCloakContainerSerivceKeycloakImageMapF79EAEA3
+            - !Ref 'AWS::Partition'
+            - uri
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref KeyCloakKeyCloakContainerSerivceLogGroup010F2AAE
+              awslogs-stream-prefix: keycloak
+              awslogs-region: !Ref 'AWS::Region'
+          Name: keycloak
+          PortMappings:
+            - ContainerPort: 8443
+              Protocol: tcp
+            - ContainerPort: 7600
+              Protocol: tcp
+            - ContainerPort: 57600
+              Protocol: tcp
+            - ContainerPort: 55200
+              Protocol: udp
+            - ContainerPort: 54200
+              Protocol: udp
+          Secrets:
+            - Name: DB_PASSWORD
+              ValueFrom: !Join 
+                - ''
+                - - !Ref >-
+                    KeyCloakDatabaseAuroraServerlessClusterSecretAttachmentA32F9C7B
+                  - ':password::'
+            - Name: KEYCLOAK_USER
+              ValueFrom: !Join 
+                - ''
+                - - !Ref KeyCloakKCSecretF8498E5C
+                  - ':username::'
+            - Name: KEYCLOAK_PASSWORD
+              ValueFrom: !Join 
+                - ''
+                - - !Ref KeyCloakKCSecretF8498E5C
+                  - ':password::'
+      Cpu: '4096'
+      ExecutionRoleArn: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceTaskRole0658CED2
+        - Arn
+      Family: >-
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceTaskDef4FFFAD7C
+      Memory: '8192'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      TaskRoleArn: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceTaskDefTaskRole0DC4D418
+        - Arn
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/TaskDef/Resource
+  KeyCloakKeyCloakContainerSerivceLogGroup010F2AAE:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: 30
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/LogGroup/Resource
+  KeyCloakKeyCloakContainerSerivceService79D3F427:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref KeyCloakKeyCloakContainerSerivceClusterA18E44FF
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      DesiredCount: !Ref MinContainers
+      EnableECSManagedTags: false
+      HealthCheckGracePeriodSeconds: 120
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: keycloak
+          ContainerPort: 8443
+          TargetGroupArn: !Ref >-
+            KeyCloakKeyCloakContainerSerivceALBHttpsListenerECSTargetGroupCE3EF52C
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !GetAtt 
+              - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+              - GroupId
+          Subnets:
+            - !Select 
+              - 0
+              - !Ref PrivSubnets
+            - !Select 
+              - 1
+              - !Ref PrivSubnets
+      TaskDefinition: !Ref KeyCloakKeyCloakContainerSerivceTaskDef30C9533A
+    DependsOn:
+      - KeyCloakKeyCloakContainerSerivceALBHttpsListenerECSTargetGroupCE3EF52C
+      - KeyCloakKeyCloakContainerSerivceALBHttpsListener140F85B9
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/Service
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: '-1'
+      VpcId: !Ref VpcId
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/Resource
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D7600D1AF9DF9:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: kc jgroups-tcp
+      FromPort: 7600
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: 7600
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D:7600
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D57600D271CB4D:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: kc jgroups-tcp-fd
+      FromPort: 57600
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: 57600
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D:57600
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3DUDP55200779B76B4:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: udp
+      Description: kc jgroups-udp
+      FromPort: 55200
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: 55200
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D:UDP
+        55200
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3DUDP5420039FAE1BD:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: udp
+      Description: kc jgroups-udp-fd
+      FromPort: 54200
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: 54200
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D:UDP
+        54200
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceALBSecurityGroupE6DFD0618443DC114C2E:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: Load balancer to target
+      FromPort: 8443
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceALBSecurityGroup8F5103C6
+        - GroupId
+      ToPort: 8443
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceALBSecurityGroupE6DFD061:8443
+  KeyCloakKeyCloakContainerSerivceServiceTaskCountTarget0EDF86B3:
+    Type: 'AWS::ApplicationAutoScaling::ScalableTarget'
+    Properties:
+      MaxCapacity: !Ref MaxContainers
+      MinCapacity: !Ref MinContainers
+      ResourceId: !Join 
+        - ''
+        - - service/
+          - !Ref KeyCloakKeyCloakContainerSerivceClusterA18E44FF
+          - /
+          - !GetAtt 
+            - KeyCloakKeyCloakContainerSerivceService79D3F427
+            - Name
+      RoleARN: !Join 
+        - ''
+        - - 'arn:'
+          - !Ref 'AWS::Partition'
+          - ':iam::'
+          - !Ref 'AWS::AccountId'
+          - >-
+            :role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ServiceNamespace: ecs
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/TaskCount/Target/Resource
+  KeyCloakKeyCloakContainerSerivceServiceTaskCountTargetCpuScaling1480DC0B:
+    Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+    Properties:
+      PolicyName: >-
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceTaskCountTargetCpuScaling99322920
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref KeyCloakKeyCloakContainerSerivceServiceTaskCountTarget0EDF86B3
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref AutoScalingTargetCpuUtilization
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/Service/TaskCount/Target/CpuScaling/Resource
+  KeyCloakKeyCloakContainerSerivceALBE100B67D:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      LoadBalancerAttributes:
+        - Key: deletion_protection.enabled
+          Value: 'false'
+      Scheme: internet-facing
+      SecurityGroups:
+        - !GetAtt 
+          - KeyCloakKeyCloakContainerSerivceALBSecurityGroup8F5103C6
+          - GroupId
+      Subnets:
+        - !Select 
+          - 0
+          - !Ref PubSubnets
+        - !Select 
+          - 1
+          - !Ref PubSubnets
+      Type: application
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/Resource
+  KeyCloakKeyCloakContainerSerivceALBSecurityGroup8F5103C6:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: >-
+        Automatically created Security Group for ELB
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceALB269EC186
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow from anyone on port 443
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      VpcId: !Ref VpcId
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/SecurityGroup/Resource
+  KeyCloakKeyCloakContainerSerivceALBSecurityGrouptokeycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D844374AC004D:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceALBSecurityGroup8F5103C6
+        - GroupId
+      IpProtocol: tcp
+      Description: Load balancer to target
+      DestinationSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      FromPort: 8443
+      ToPort: 8443
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/SecurityGroup/to
+        keycloakauroraserverlessfromexistingvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup448D5B3D:8443
+  KeyCloakKeyCloakContainerSerivceALBHttpsListener140F85B9:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref >-
+            KeyCloakKeyCloakContainerSerivceALBHttpsListenerECSTargetGroupCE3EF52C
+          Type: forward
+      LoadBalancerArn: !Ref KeyCloakKeyCloakContainerSerivceALBE100B67D
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      Port: 443
+      Protocol: HTTPS
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/HttpsListener/Resource
+  KeyCloakKeyCloakContainerSerivceALBHttpsListenerECSTargetGroupCE3EF52C:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthyThresholdCount: 3
+      Port: 8443
+      Protocol: HTTPS
+      TargetGroupAttributes:
+        - Key: slow_start.duration_seconds
+          Value: '60'
+        - Key: stickiness.enabled
+          Value: 'true'
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: '604800'
+      TargetType: ip
+      VpcId: !Ref VpcId
+    Metadata:
+      'aws:cdk:path': >-
+        keycloak-aurora-serverless-from-existing-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/HttpsListener/ECSTargetGroup/Resource
+  CDKMetadata:
+    Type: 'AWS::CDK::Metadata'
+    Properties:
+      Analytics: >-
+        v2:deflate64:H4sIAAAAAAAA/31S207jMBD9Ft6NIdWq0r4B7YJW6moR6Q9MnSFr6tiRPe4KRfl3xnYbUirx5PE5M3PmVsmhWt7K26s7+B+uVbO/GZTzKIeaQO3F6tU+g4cOCb14weCiV5jQv5H6SMn6A32vbStWzgbyUWVw7spEo0k7O4qkMWjo5PDiTCbz++yMVu9ZLFujMK4Ncti49sm72CfmZI/jKKrl4rLiSTKL+Ibja/QH9AZDWJkYUgt13FmkKen6YQ6sgWAHAWtUHqnwx8BRoFqkhCp6Te9Tgu+B37b1LH6B/8rwKEIWCh1YaNHLofgl7fJswbdI98Sr+NehJTE5XDAFTmVy36du0/CP5iMHAOEWwn6Nr9rmhSSHr4izBNqin2HH2DRNXVZ6MmsFBnYmp125aLmAi+3y1vuetwopF0RygYP4YHiaU3RqJuc9R8qz9XyJHFCXuM9jOQO4dQOBtDIOmh2nsYq5Ay/t/lN+w9xD5sp0zv5zP81Ds0efkz3jS2HT0mffMd2ndQ3Kt3BzqH7I6qdcXL0Fra89z0d3fKjl/QC8kqPgegMAAA==
+    Metadata:
+      'aws:cdk:path': keycloak-aurora-serverless-from-existing-vpc/CDKMetadata/Default
+    Condition: CDKMetadataAvailable
+Outputs:
+  KeyCloakDatabaseDBSecretArn28BEB641:
+    Value: !Ref KeyCloakDatabaseAuroraServerlessClusterSecretAttachmentA32F9C7B
+  KeyCloakDatabaseclusterEndpointHostname38FB0D1E:
+    Value: !GetAtt 
+      - KeyCloakDatabaseAuroraServerlessClusterDB73D16F
+      - Endpoint.Address
+  KeyCloakDatabaseclusterIdentifierF00C290B:
+    Value: !Ref KeyCloakDatabaseAuroraServerlessClusterDB73D16F
+  KeyCloakKeyCloakContainerSerivceEndpointURL9C81E19A:
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !GetAtt 
+          - KeyCloakKeyCloakContainerSerivceALBE100B67D
+          - DNSName
+Mappings:
+  KeyCloakKeyCloakContainerSerivceKeycloakImageMapF79EAEA3:
+    aws:
+      uri: 'jboss/keycloak:16.1.1'
+    aws-cn:
+      uri: >-
+        048912060910.dkr.ecr.cn-northwest-1.amazonaws.com.cn/dockerhub/jboss/keycloak:16.1.1
+Conditions:
+  CDKMetadataAvailable: !Or 
+    - !Or 
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - af-south-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-east-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-northeast-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-northeast-2
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-south-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-southeast-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-southeast-2
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ca-central-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - cn-north-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - cn-northwest-1
+    - !Or 
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-central-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-north-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-south-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-west-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-west-2
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-west-3
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - me-south-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - sa-east-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - us-east-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - us-east-2
+    - !Or 
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - us-west-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - us-west-2

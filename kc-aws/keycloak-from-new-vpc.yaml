@@ -1,0 +1,996 @@
+
+Description: '(SO8021) - Deploy keycloak rds mysql with new vpc. template version: v2.1.1'
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Application Load Balancer Settings
+        Parameters:
+          - CertificateArn
+      - Label:
+          default: Database Instance Settings
+        Parameters:
+          - DatabaseInstanceType
+      - Label:
+          default: AutoScaling Settings
+        Parameters:
+          - MinContainers
+          - MaxContainers
+          - AutoScalingTargetCpuUtilization
+      - Label:
+          default: Environment variable
+        Parameters:
+          - JavaOpts
+
+Parameters:
+  CertificateArn:
+    Type: String
+    Description: Certificate Arn for Application Load Balancer
+    MinLength: 5
+  DatabaseInstanceType:
+    Type: String
+    Default: r5.large
+    AllowedValues:
+      - r5.large
+      - r5.xlarge
+      - r5.2xlarge
+      - r5.4xlarge
+      - r5.8xlarge
+      - r5.12xlarge
+      - r5.16xlarge
+      - r5.24xlarge
+      - t3.small
+      - t3.medium
+    Description: Instance type to be used for the core instances
+  MinContainers:
+    Type: Number
+    Default: 2
+    Description: minimum containers count
+    MinValue: 2
+  MaxContainers:
+    Type: Number
+    Default: 10
+    Description: maximum containers count
+    MinValue: 2
+  AutoScalingTargetCpuUtilization:
+    Type: Number
+    Default: 75
+    Description: Auto scaling target cpu utilization
+    MinValue: 0
+  JavaOpts:
+    Type: String
+    Default: '-server -Xms1024m -Xmx1638m'
+    Description: JAVA_OPTS environment variable
+
+Resources:
+  
+  KeyCloakVpcF3901B3A:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/Resource
+  
+  KeyCloakVpcPublicSubnet1Subnet0762DA88:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref KeyCloakVpcF3901B3A
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs ''
+      CidrBlock: 10.0.0.0/18
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: 'aws-cdk:subnet-name'
+          Value: Public
+        - Key: 'aws-cdk:subnet-type'
+          Value: Public
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1/Subnet
+  
+  KeyCloakVpcPublicSubnet1RouteTable841A709E:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref KeyCloakVpcF3901B3A
+      Tags:
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1/RouteTable
+  
+  KeyCloakVpcPublicSubnet1RouteTableAssociationFF91B678:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref KeyCloakVpcPublicSubnet1RouteTable841A709E
+      SubnetId: !Ref KeyCloakVpcPublicSubnet1Subnet0762DA88
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1/RouteTableAssociation
+  
+  KeyCloakVpcPublicSubnet1DefaultRoute438FBE69:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref KeyCloakVpcPublicSubnet1RouteTable841A709E
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref KeyCloakVpcIGW69251108
+    DependsOn:
+      - KeyCloakVpcVPCGW23A2D9CE
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1/DefaultRoute
+  
+  KeyCloakVpcPublicSubnet1EIP6EA2ED08:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1/EIP
+  
+  KeyCloakVpcPublicSubnet1NATGateway923A52EE:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      SubnetId: !Ref KeyCloakVpcPublicSubnet1Subnet0762DA88
+      AllocationId: !GetAtt 
+        - KeyCloakVpcPublicSubnet1EIP6EA2ED08
+        - AllocationId
+      Tags:
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet1/NATGateway
+  
+  KeyCloakVpcPublicSubnet2Subnet22049636:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref KeyCloakVpcF3901B3A
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs ''
+      CidrBlock: 10.0.64.0/18
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: 'aws-cdk:subnet-name'
+          Value: Public
+        - Key: 'aws-cdk:subnet-type'
+          Value: Public
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet2
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet2/Subnet
+  
+  KeyCloakVpcPublicSubnet2RouteTableBE60E8CF:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref KeyCloakVpcF3901B3A
+      Tags:
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet2
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet2/RouteTable
+  
+  KeyCloakVpcPublicSubnet2RouteTableAssociation3117C73A:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref KeyCloakVpcPublicSubnet2RouteTableBE60E8CF
+      SubnetId: !Ref KeyCloakVpcPublicSubnet2Subnet22049636
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet2/RouteTableAssociation
+ 
+  KeyCloakVpcPublicSubnet2DefaultRouteCFC19404:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref KeyCloakVpcPublicSubnet2RouteTableBE60E8CF
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref KeyCloakVpcIGW69251108
+    DependsOn:
+      - KeyCloakVpcVPCGW23A2D9CE
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PublicSubnet2/DefaultRoute
+  
+  KeyCloakVpcPrivateSubnet1SubnetA692DFFF:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref KeyCloakVpcF3901B3A
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs ''
+      CidrBlock: 10.0.128.0/18
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: 'aws-cdk:subnet-name'
+          Value: Private
+        - Key: 'aws-cdk:subnet-type'
+          Value: Private
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet1
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet1/Subnet
+  
+  KeyCloakVpcPrivateSubnet1RouteTableD1A04A09:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref KeyCloakVpcF3901B3A
+      Tags:
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet1
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet1/RouteTable
+  
+  KeyCloakVpcPrivateSubnet1RouteTableAssociationD9158DB8:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref KeyCloakVpcPrivateSubnet1RouteTableD1A04A09
+      SubnetId: !Ref KeyCloakVpcPrivateSubnet1SubnetA692DFFF
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet1/RouteTableAssociation
+  
+  KeyCloakVpcPrivateSubnet1DefaultRouteA309AD23:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref KeyCloakVpcPrivateSubnet1RouteTableD1A04A09
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref KeyCloakVpcPublicSubnet1NATGateway923A52EE
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet1/DefaultRoute
+  
+  KeyCloakVpcPrivateSubnet2SubnetC8682D75:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref KeyCloakVpcF3901B3A
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs ''
+      CidrBlock: 10.0.192.0/18
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: 'aws-cdk:subnet-name'
+          Value: Private
+        - Key: 'aws-cdk:subnet-type'
+          Value: Private
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet2
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet2/Subnet
+  
+  KeyCloakVpcPrivateSubnet2RouteTableEB13A8EA:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref KeyCloakVpcF3901B3A
+      Tags:
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet2
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet2/RouteTable
+  
+  KeyCloakVpcPrivateSubnet2RouteTableAssociation4BA8795B:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref KeyCloakVpcPrivateSubnet2RouteTableEB13A8EA
+      SubnetId: !Ref KeyCloakVpcPrivateSubnet2SubnetC8682D75
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet2/RouteTableAssociation
+  
+  KeyCloakVpcPrivateSubnet2DefaultRoute8D3CC7CF:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref KeyCloakVpcPrivateSubnet2RouteTableEB13A8EA
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref KeyCloakVpcPublicSubnet1NATGateway923A52EE
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/PrivateSubnet2/DefaultRoute
+  
+  KeyCloakVpcIGW69251108:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: keycloak-from-new-vpc/KeyCloak/Vpc
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/IGW
+  
+  KeyCloakVpcVPCGW23A2D9CE:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref KeyCloakVpcF3901B3A
+      InternetGatewayId: !Ref KeyCloakVpcIGW69251108
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Vpc/VPCGW
+ 
+  KeyCloakDatabaseDBClusterSubnetsE36F1B1B:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: Subnets for DBCluster database
+      SubnetIds:
+        - !Ref KeyCloakVpcPrivateSubnet1SubnetA692DFFF
+        - !Ref KeyCloakVpcPrivateSubnet2SubnetC8682D75
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Database/DBCluster/Subnets/Default
+  
+  KeyCloakDatabaseDBClusterSecurityGroup843B4392:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: RDS security group
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: '-1'
+      SecurityGroupIngress:
+        - CidrIp: !GetAtt 
+            - KeyCloakVpcF3901B3A
+            - CidrBlock
+          Description: !Join 
+            - ''
+            - - 'from '
+              - !GetAtt 
+                - KeyCloakVpcF3901B3A
+                - CidrBlock
+              - ':3306'
+          FromPort: 3306
+          IpProtocol: tcp
+          ToPort: 3306
+      VpcId: !Ref KeyCloakVpcF3901B3A
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Database/DBCluster/SecurityGroup/Resource
+  
+  KeyCloakDatabaseDBClusterSecurityGroupfromkeycloakfromnewvpcKeyCloakDatabaseDBClusterSecurityGroupB3AAFA043306C839B8DF:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: 'from keycloakfromnewvpcKeyCloakDatabaseDBClusterSecurityGroupB3AAFA04:3306'
+      FromPort: 3306
+      GroupId: !GetAtt 
+        - KeyCloakDatabaseDBClusterSecurityGroup843B4392
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakDatabaseDBClusterSecurityGroup843B4392
+        - GroupId
+      ToPort: 3306
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/Database/DBCluster/SecurityGroup/from keycloakfromnewvpcKeyCloakDatabaseDBClusterSecurityGroupB3AAFA04:3306'
+  
+  KeyCloakDatabaseDBClusterSecurityGroupfromkeycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6FIndirectPort1341412F:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: 'from keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F:{IndirectPort}'
+      FromPort: !GetAtt 
+        - KeyCloakDatabaseDBCluster06E9C0E1
+        - Endpoint.Port
+      GroupId: !GetAtt 
+        - KeyCloakDatabaseDBClusterSecurityGroup843B4392
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: !GetAtt 
+        - KeyCloakDatabaseDBCluster06E9C0E1
+        - Endpoint.Port
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/Database/DBCluster/SecurityGroup/from keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F:{IndirectPort}'
+  
+  keycloakfromnewvpcKeyCloakDatabaseDBClusterSecretD9030AC53fdaad7efa858a3daf9490cf0a702aeb:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Description: !Join 
+        - ''
+        - - 'Generated by the CDK for stack: '
+          - !Ref 'AWS::StackName'
+      GenerateSecretString:
+        ExcludeCharacters: ' %+~`#$&*()|[]{}:;<>?!''/@"\'
+        GenerateStringKey: password
+        PasswordLength: 30
+        SecretStringTemplate: '{"username":"admin"}'
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Database/DBCluster/Secret/Resource
+  
+  KeyCloakDatabaseDBClusterSecretAttachment50401C92:
+    Type: 'AWS::SecretsManager::SecretTargetAttachment'
+    Properties:
+      SecretId: !Ref 'keycloakfromnewvpcKeyCloakDatabaseDBClusterSecretD9030AC53fdaad7efa858a3daf9490cf0a702aeb'
+      TargetId: !Ref KeyCloakDatabaseDBCluster06E9C0E1
+      TargetType: 'AWS::RDS::DBCluster'
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/Database/DBCluster/Secret/Attachment/Resource'
+  
+  KeyCloakDatabaseDBCluster06E9C0E1:
+    Type: 'AWS::RDS::DBCluster'
+    Properties:
+      Engine: aurora-mysql
+      BackupRetentionPeriod: 7
+      CopyTagsToSnapshot: true
+      DatabaseName: keycloak
+      DBClusterParameterGroupName: default.aurora-mysql5.7
+      DBSubnetGroupName: !Ref KeyCloakDatabaseDBClusterSubnetsE36F1B1B
+      DeletionProtection: true
+      EngineVersion: 5.7.mysql_aurora.2.09.1
+      MasterUsername: admin
+      MasterUserPassword: !Join 
+        - ''
+        - - '{{resolve:secretsmanager:'
+          - !Ref 'keycloakfromnewvpcKeyCloakDatabaseDBClusterSecretD9030AC53fdaad7efa858a3daf9490cf0a702aeb'
+          - ':SecretString:password::}}'
+      StorageEncrypted: true
+      VpcSecurityGroupIds:
+        - !GetAtt 
+          - KeyCloakDatabaseDBClusterSecurityGroup843B4392
+          - GroupId
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Database/DBCluster/Resource
+  
+  KeyCloakDatabaseDBClusterInstance12532FD3D:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceClass: !Join 
+        - ''
+        - - db.
+          - !Ref DatabaseInstanceType
+      DBClusterIdentifier: !Ref KeyCloakDatabaseDBCluster06E9C0E1
+      DBSubnetGroupName: !Ref KeyCloakDatabaseDBClusterSubnetsE36F1B1B
+      Engine: aurora-mysql
+      EngineVersion: 5.7.mysql_aurora.2.09.1
+    DependsOn:
+      - KeyCloakVpcPrivateSubnet1DefaultRouteA309AD23
+      - KeyCloakVpcPrivateSubnet2DefaultRoute8D3CC7CF
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Database/DBCluster/Instance1
+  
+  KeyCloakDatabaseDBClusterInstance2EE80EFE4:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceClass: !Join 
+        - ''
+        - - db.
+          - !Ref DatabaseInstanceType
+      DBClusterIdentifier: !Ref KeyCloakDatabaseDBCluster06E9C0E1
+      DBSubnetGroupName: !Ref KeyCloakDatabaseDBClusterSubnetsE36F1B1B
+      Engine: aurora-mysql
+      EngineVersion: 5.7.mysql_aurora.2.09.1
+    DependsOn:
+      - KeyCloakVpcPrivateSubnet1DefaultRouteA309AD23
+      - KeyCloakVpcPrivateSubnet2DefaultRoute8D3CC7CF
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/Database/DBCluster/Instance2
+  
+  KeyCloakKCSecretF8498E5C:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      GenerateSecretString:
+        ExcludePunctuation: true
+        GenerateStringKey: password
+        PasswordLength: 12
+        SecretStringTemplate: '{"username":"keycloak"}'
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/KCSecret/Resource
+  
+  KeyCloakKeyCloakContainerSerivceClusterA18E44FF:
+    Type: 'AWS::ECS::Cluster'
+    DependsOn:
+      - KeyCloakDatabaseDBClusterInstance12532FD3D
+      - KeyCloakDatabaseDBClusterInstance2EE80EFE4
+      - KeyCloakDatabaseDBCluster06E9C0E1
+      - KeyCloakDatabaseDBClusterSecretAttachment50401C92
+      - keycloakfromnewvpcKeyCloakDatabaseDBClusterSecretD9030AC53fdaad7efa858a3daf9490cf0a702aeb
+      - KeyCloakDatabaseDBClusterSecurityGroupfromkeycloakfromnewvpcKeyCloakDatabaseDBClusterSecurityGroupB3AAFA043306C839B8DF
+      - KeyCloakDatabaseDBClusterSecurityGroupfromkeycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6FIndirectPort1341412F
+      - KeyCloakDatabaseDBClusterSecurityGroup843B4392
+      - KeyCloakDatabaseDBClusterSubnetsE36F1B1B
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Cluster/Resource
+  
+  KeyCloakKeyCloakContainerSerivceTaskRole0658CED2:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: 2012-10-17
+      ManagedPolicyArns:
+        - !Join 
+          - ''
+          - - 'arn:'
+            - !Ref 'AWS::Partition'
+            - ':iam::aws:policy/AmazonEC2ContainerRegistryReadOnly'
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/TaskRole/Resource'
+  
+  KeyCloakKeyCloakContainerSerivceTaskRoleDefaultPolicyA2321E87:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Effect: Allow
+            Resource: !GetAtt 
+              - KeyCloakKeyCloakContainerSerivceLogGroup010F2AAE
+              - Arn
+          - Action:
+              - 'secretsmanager:GetSecretValue'
+              - 'secretsmanager:DescribeSecret'
+            Effect: Allow
+            Resource: !Ref KeyCloakDatabaseDBClusterSecretAttachment50401C92
+          - Action:
+              - 'secretsmanager:GetSecretValue'
+              - 'secretsmanager:DescribeSecret'
+            Effect: Allow
+            Resource: !Ref KeyCloakKCSecretF8498E5C
+        Version: 2012-10-17
+      PolicyName: KeyCloakKeyCloakContainerSerivceTaskRoleDefaultPolicyA2321E87
+      Roles:
+        - !Ref KeyCloakKeyCloakContainerSerivceTaskRole0658CED2
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/TaskRole/DefaultPolicy/Resource'
+  
+  KeyCloakKeyCloakContainerSerivceTaskDefTaskRole0DC4D418:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: 2012-10-17
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/TaskDef/TaskRole/Resource'
+  
+  KeyCloakKeyCloakContainerSerivceTaskDef30C9533A:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: DB_ADDR
+              Value: !GetAtt 
+                - KeyCloakDatabaseDBCluster06E9C0E1
+                - Endpoint.Address
+            - Name: DB_DATABASE
+              Value: keycloak
+            - Name: DB_PORT
+              Value: '3306'
+            - Name: DB_USER
+              Value: admin
+            - Name: DB_VENDOR
+              Value: mysql
+            - Name: PROXY_ADDRESS_FORWARDING
+              Value: 'true'
+            - Name: JDBC_PARAMS
+              Value: useSSL=false
+            - Name: JGROUPS_DISCOVERY_PROTOCOL
+              Value: JDBC_PING
+            - Name: JAVA_OPTS
+              Value: !Ref JavaOpts
+          Essential: true
+          Image: !FindInMap 
+            - KeyCloakKeyCloakContainerSerivceKeycloakImageMapF79EAEA3
+            - !Ref 'AWS::Partition'
+            - uri
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref KeyCloakKeyCloakContainerSerivceLogGroup010F2AAE
+              awslogs-stream-prefix: keycloak
+              awslogs-region: !Ref 'AWS::Region'
+          Name: keycloak
+          PortMappings:
+            - ContainerPort: 8443
+              Protocol: tcp
+            - ContainerPort: 7600
+              Protocol: tcp
+            - ContainerPort: 57600
+              Protocol: tcp
+            - ContainerPort: 55200
+              Protocol: udp
+            - ContainerPort: 54200
+              Protocol: udp
+          Secrets:
+            - Name: DB_PASSWORD
+              ValueFrom: !Join 
+                - ''
+                - - !Ref KeyCloakDatabaseDBClusterSecretAttachment50401C92
+                  - ':password::'
+            - Name: KEYCLOAK_USER
+              ValueFrom: !Join 
+                - ''
+                - - !Ref KeyCloakKCSecretF8498E5C
+                  - ':username::'
+            - Name: KEYCLOAK_PASSWORD
+              ValueFrom: !Join 
+                - ''
+                - - !Ref KeyCloakKCSecretF8498E5C
+                  - ':password::'
+      Cpu: '4096'
+      ExecutionRoleArn: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceTaskRole0658CED2
+        - Arn
+      Family: keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceTaskDef1D1C49FD
+      Memory: '8192'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      TaskRoleArn: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceTaskDefTaskRole0DC4D418
+        - Arn
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/TaskDef/Resource
+ 
+  KeyCloakKeyCloakContainerSerivceLogGroup010F2AAE:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: 30
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/LogGroup/Resource'
+  
+  KeyCloakKeyCloakContainerSerivceService79D3F427:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref KeyCloakKeyCloakContainerSerivceClusterA18E44FF
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      DesiredCount: !Ref MinContainers
+      EnableECSManagedTags: false
+      HealthCheckGracePeriodSeconds: 120
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: keycloak
+          ContainerPort: 8443
+          TargetGroupArn: !Ref 'KeyCloakKeyCloakContainerSerivceALBHttpsListenerECSTargetGroupCE3EF52C'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !GetAtt 
+              - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+              - GroupId
+          Subnets:
+            - !Ref KeyCloakVpcPrivateSubnet1SubnetA692DFFF
+            - !Ref KeyCloakVpcPrivateSubnet2SubnetC8682D75
+      TaskDefinition: !Ref KeyCloakKeyCloakContainerSerivceTaskDef30C9533A
+    DependsOn:
+      - KeyCloakKeyCloakContainerSerivceALBHttpsListenerECSTargetGroupCE3EF52C
+      - KeyCloakKeyCloakContainerSerivceALBHttpsListener140F85B9
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/Service
+  
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup'
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: '-1'
+      VpcId: !Ref KeyCloakVpcF3901B3A
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/Resource'
+  
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F7600072FBEF3:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: kc jgroups-tcp
+      FromPort: 7600
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: 7600
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F:7600'
+  
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F576002EC45BE9:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: kc jgroups-tcp-fd
+      FromPort: 57600
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: 57600
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F:57600'
+  
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6FUDP55200E69B9F53:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: udp
+      Description: kc jgroups-udp
+      FromPort: 55200
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: 55200
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F:UDP 55200'
+  
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6FUDP542008D70BDC1:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: udp
+      Description: kc jgroups-udp-fd
+      FromPort: 54200
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      ToPort: 54200
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F:UDP 54200'
+  
+  KeyCloakKeyCloakContainerSerivceServiceSecurityGroupfromkeycloakfromnewvpcKeyCloakKeyCloakContainerSerivceALBSecurityGroupFD2CC2BD8443F1CBDED3:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: Load balancer to target
+      FromPort: 8443
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      SourceSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceALBSecurityGroup8F5103C6
+        - GroupId
+      ToPort: 8443
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/SecurityGroup/from keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceALBSecurityGroupFD2CC2BD:8443'
+  
+  KeyCloakKeyCloakContainerSerivceServiceTaskCountTarget0EDF86B3:
+    Type: 'AWS::ApplicationAutoScaling::ScalableTarget'
+    Properties:
+      MaxCapacity: !Ref MaxContainers
+      MinCapacity: !Ref MinContainers
+      ResourceId: !Join 
+        - ''
+        - - service/
+          - !Ref KeyCloakKeyCloakContainerSerivceClusterA18E44FF
+          - /
+          - !GetAtt 
+            - KeyCloakKeyCloakContainerSerivceService79D3F427
+            - Name
+      RoleARN: !Join 
+        - ''
+        - - 'arn:'
+          - !Ref 'AWS::Partition'
+          - ':iam::'
+          - !Ref 'AWS::AccountId'
+          - ':role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService'
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ServiceNamespace: ecs
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/TaskCount/Target/Resource'
+  
+  KeyCloakKeyCloakContainerSerivceServiceTaskCountTargetCpuScaling1480DC0B:
+    Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+    Properties:
+      PolicyName: 'keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceTaskCountTargetCpuScaling97B57114'
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref KeyCloakKeyCloakContainerSerivceServiceTaskCountTarget0EDF86B3
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref AutoScalingTargetCpuUtilization
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/Service/TaskCount/Target/CpuScaling/Resource'
+  
+  KeyCloakKeyCloakContainerSerivceALBE100B67D:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      LoadBalancerAttributes:
+        - Key: deletion_protection.enabled
+          Value: 'false'
+      Scheme: internet-facing
+      SecurityGroups:
+        - !GetAtt 
+          - KeyCloakKeyCloakContainerSerivceALBSecurityGroup8F5103C6
+          - GroupId
+      Subnets:
+        - !Ref KeyCloakVpcPublicSubnet1Subnet0762DA88
+        - !Ref KeyCloakVpcPublicSubnet2Subnet22049636
+      Type: application
+    DependsOn:
+      - KeyCloakVpcPublicSubnet1DefaultRoute438FBE69
+      - KeyCloakVpcPublicSubnet2DefaultRouteCFC19404
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/Resource
+  KeyCloakKeyCloakContainerSerivceALBSecurityGroup8F5103C6:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Automatically created Security Group for ELB keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceALB6949C8EF'
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow from anyone on port 443
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      VpcId: !Ref KeyCloakVpcF3901B3A
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/SecurityGroup/Resource'
+  KeyCloakKeyCloakContainerSerivceALBSecurityGrouptokeycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F844390074815:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      GroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceALBSecurityGroup8F5103C6
+        - GroupId
+      IpProtocol: tcp
+      Description: Load balancer to target
+      DestinationSecurityGroupId: !GetAtt 
+        - KeyCloakKeyCloakContainerSerivceServiceSecurityGroup4C80023D
+        - GroupId
+      FromPort: 8443
+      ToPort: 8443
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/SecurityGroup/to keycloakfromnewvpcKeyCloakKeyCloakContainerSerivceServiceSecurityGroup981DBF6F:8443'
+  KeyCloakKeyCloakContainerSerivceALBHttpsListener140F85B9:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref 'KeyCloakKeyCloakContainerSerivceALBHttpsListenerECSTargetGroupCE3EF52C'
+          Type: forward
+      LoadBalancerArn: !Ref KeyCloakKeyCloakContainerSerivceALBE100B67D
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      Port: 443
+      Protocol: HTTPS
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/HttpsListener/Resource'
+  KeyCloakKeyCloakContainerSerivceALBHttpsListenerECSTargetGroupCE3EF52C:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthyThresholdCount: 3
+      Port: 8443
+      Protocol: HTTPS
+      TargetGroupAttributes:
+        - Key: slow_start.duration_seconds
+          Value: '60'
+        - Key: stickiness.enabled
+          Value: 'true'
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: '604800'
+      TargetType: ip
+      VpcId: !Ref KeyCloakVpcF3901B3A
+    Metadata:
+      'aws:cdk:path': 'keycloak-from-new-vpc/KeyCloak/KeyCloakContainerSerivce/ALB/HttpsListener/ECSTargetGroup/Resource'
+  CDKMetadata:
+    Type: 'AWS::CDK::Metadata'
+    Properties:
+      Analytics: 'v2:deflate64:H4sIAAAAAAAA/31T227bMAz9lr6rbh0UBfa2xGmLAN1mxEHfaZn11NiSoUuKwvC/j5LiS5ZhTzw6vJg8pNOkTx/vk/ub7/Bpbnl1vOu50pj0hQV+ZNm7zEFDixY126NRTnP07C9nO2c9+gFdJ2TNMiWN1Y4HchlKjkpYoeTA/Dd65Kukf+u4973lGctd2QheuFJiyJ3RXjmLBygbnPmZWxujuABfeQr24GmXe/MT7AtY/IQvlmtxIjgX3kmah/AYEDs5v9aWRv/dorQDE9Am/V7FBoLNFTUbMiIaWKNqk/Svqn7RynXeM+JhGFj6uLpWd5InCKIryt+ChRIMZo0zXuzY7FRyu1kSY3CBXMeJtpsxMTx2tAuQHAcW1KY4p4X9msr9n9jJWqMxV/xToAdmwmdNCxJq1Ekf43wn0RxA12hnHdkUcOWJtG+TNFiMMMJnSgC/cHPc4ruQYlz334ySFoREveDOuQXqk4inOMKCQ+NPyBfJlPvnpulau442HA4MnFWGkujQSc0p2w8T6l4y0Rw0/UGUUMS8+XAuCBq9AWMFbxRUJZWRnHwnWtp6/vwr+TbBF9W5eC/jBIkmzzEjXvhjY9PSF8/B36pUFSYf5u6UPiTpt2R182GEuNWkj2jpaKP9AyYaKFcyBAAA'
+    Metadata:
+      'aws:cdk:path': keycloak-from-new-vpc/CDKMetadata/Default
+    Condition: CDKMetadataAvailable
+Outputs:
+  KeyCloakDatabaseDBSecretArn28BEB641:
+    Value: !Ref KeyCloakDatabaseDBClusterSecretAttachment50401C92
+  KeyCloakDatabaseclusterEndpointHostname38FB0D1E:
+    Value: !GetAtt 
+      - KeyCloakDatabaseDBCluster06E9C0E1
+      - Endpoint.Address
+  KeyCloakDatabaseclusterIdentifierF00C290B:
+    Value: !Ref KeyCloakDatabaseDBCluster06E9C0E1
+  KeyCloakKeyCloakContainerSerivceEndpointURL9C81E19A:
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !GetAtt 
+          - KeyCloakKeyCloakContainerSerivceALBE100B67D
+          - DNSName
+Mappings:
+  KeyCloakKeyCloakContainerSerivceKeycloakImageMapF79EAEA3:
+    aws:
+      uri: 'jboss/keycloak:16.1.1'
+    aws-cn:
+      uri: '048912060910.dkr.ecr.cn-northwest-1.amazonaws.com.cn/dockerhub/jboss/keycloak:16.1.1'
+Conditions:
+  CDKMetadataAvailable: !Or 
+    - !Or 
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - af-south-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-east-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-northeast-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-northeast-2
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-south-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-southeast-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ap-southeast-2
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - ca-central-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - cn-north-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - cn-northwest-1
+    - !Or 
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-central-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-north-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-south-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-west-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-west-2
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - eu-west-3
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - me-south-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - sa-east-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - us-east-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - us-east-2
+    - !Or 
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - us-west-1
+      - !Equals 
+        - !Ref 'AWS::Region'
+        - us-west-2
